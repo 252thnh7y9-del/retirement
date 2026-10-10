@@ -18,6 +18,10 @@
       --growth: #1a8f4c;
       --withdrawal: #d03b3b;
       --grid: #e6e9ee;
+      --sc-up2: #1f5fbf;
+      --sc-up1: #7aa6e6;
+      --sc-dn1: #e8a25a;
+      --sc-dn2: #b4531a;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -33,6 +37,10 @@
         --growth: #34b56f;
         --withdrawal: #f26060;
         --grid: #2a2f38;
+        --sc-up2: #5b93f0;
+        --sc-up1: #a3c2f3;
+        --sc-dn1: #f2b878;
+        --sc-dn2: #e0763a;
       }
     }
     * { box-sizing: border-box; }
@@ -76,18 +84,16 @@
     th { position: sticky; top: 0; background: var(--card); font-size: 0.85rem; color: var(--muted); }
     tr.retired td { background: var(--retired-row); }
     .chart-wrap { position: relative; }
-    #chart { display: block; width: 100%; height: auto; }
-    #chart text { fill: var(--muted); font-size: 12px; font-family: inherit; }
-    #chart .grid { stroke: var(--grid); stroke-width: 1; }
-    #chart .axis { stroke: var(--border); stroke-width: 1; }
-    #chart .retire-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
-    #chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-    #chart .networth { stroke: var(--networth); }
-    #chart .growth { stroke: var(--growth); }
-    #chart .withdrawal { stroke: var(--withdrawal); stroke-dasharray: 6 4; }
-    #chart .dot { stroke: var(--card); stroke-width: 2; }
-    #chart .crosshair { stroke: var(--muted); stroke-width: 1; }
-    #chart text.label { fill: var(--text); font-weight: 600; }
+    .chart { display: block; width: 100%; height: auto; }
+    .chart text { fill: var(--muted); font-size: 12px; font-family: inherit; }
+    .chart .grid { stroke: var(--grid); stroke-width: 1; }
+    .chart .axis { stroke: var(--border); stroke-width: 1; }
+    .chart .retire-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+    .chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .chart .dot { stroke: var(--card); stroke-width: 2; }
+    .chart .crosshair { stroke: var(--muted); stroke-width: 1; }
+    .chart-title { margin: 0 0 4px; font-size: 1rem; }
+    .chart-note { margin: 0 0 10px; color: var(--muted); font-size: 0.85rem; }
     .legend { display: flex; gap: 20px; margin: 0 0 8px; font-size: 0.9rem; color: var(--text); flex-wrap: wrap; }
     .legend span { display: inline-flex; align-items: center; gap: 8px; }
     .legend svg { width: 28px; height: 4px; overflow: visible; }
@@ -147,7 +153,7 @@
           <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--growth)" stroke-width="2"/></svg>Growth</span>
         </div>
         <div class="chart-wrap">
-          <svg id="chart" role="img" aria-label="Net worth, withdrawal and growth by age"></svg>
+          <svg class="chart" id="chart" role="img" aria-label="Net worth, withdrawal and growth by age"></svg>
           <div class="tooltip" id="tooltip"></div>
         </div>
       </div>
@@ -161,6 +167,22 @@
           </thead>
           <tbody id="rows"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="card" id="scenarioCard" hidden>
+      <h2 class="chart-title">Growth scenarios</h2>
+      <p class="chart-note">Net worth if future growth were 1 or 2 points higher or lower than entered.</p>
+      <div class="legend">
+        <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--networth)" stroke-width="2"/></svg>Net Worth</span>
+        <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--sc-up1)" stroke-width="2"/></svg>+1%</span>
+        <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--sc-up2)" stroke-width="2"/></svg>+2%</span>
+        <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--sc-dn1)" stroke-width="2"/></svg>-1%</span>
+        <span><svg viewBox="0 0 28 4"><line x1="0" y1="2" x2="28" y2="2" stroke="var(--sc-dn2)" stroke-width="2"/></svg>-2%</span>
+      </div>
+      <div class="chart-wrap">
+        <svg class="chart" id="scenarioChart" role="img" aria-label="Net worth by age under growth rates 1 and 2 points above and below the entered rate"></svg>
+        <div class="tooltip" id="scenarioTooltip"></div>
       </div>
     </section>
   </main>
@@ -223,7 +245,10 @@
     const svg = document.getElementById("chart");
     const tooltip = document.getElementById("tooltip");
     const compact = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
-    let lastRows = null, lastRetireAge = null;
+    const scenCard = document.getElementById("scenarioCard");
+    const scenSvg = document.getElementById("scenarioChart");
+    const scenTooltip = document.getElementById("scenarioTooltip");
+    let lastInputs = null;
 
     function el(name, attrs, parent) {
       const node = document.createElementNS(SVG_NS, name);
@@ -239,8 +264,9 @@
       return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
     }
 
-    function drawChart(rows, retireAge) {
-      lastRows = rows; lastRetireAge = retireAge;
+    // Draws a line chart into `svg`. `series` is a list of { label, color, dash, values },
+    // one value per age; later series are drawn on top. Tooltip lists them in `tipOrder`.
+    function drawChart(svg, tooltip, ages, series, retireAge, tipOrder = series) {
       svg.replaceChildren();
       tooltip.style.display = "none";
       const W = Math.max(300, svg.parentElement.clientWidth);
@@ -249,8 +275,8 @@
       const m = { top: 12, right: 16, bottom: 32, left: 64 };
       const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
 
-      const minAge = rows[0].age, maxAge = rows[rows.length - 1].age;
-      const peak = Math.max(1, ...rows.map(r => Math.max(r.netWorth, r.withdrawal, r.growth)));
+      const minAge = ages[0], maxAge = ages[ages.length - 1];
+      const peak = Math.max(1, ...series.flatMap(sr => sr.values));
       const yStep = niceStep(peak, 5);
       const yMax = Math.ceil(peak / yStep) * yStep;
       const x = a => m.left + (maxAge === minAge ? iw / 2 : (a - minAge) / (maxAge - minAge) * iw);
@@ -276,33 +302,26 @@
         t.textContent = "Retire";
       }
 
-      const path = key => rows.map((r, i) => `${i ? "L" : "M"}${x(r.age).toFixed(1)},${y(r[key]).toFixed(1)}`).join("");
-      el("path", { d: path("withdrawal"), class: "line withdrawal" }, svg);
-      el("path", { d: path("growth"), class: "line growth" }, svg);
-      el("path", { d: path("netWorth"), class: "line networth" }, svg);
+      for (const sr of series) {
+        const d = sr.values.map((v, i) => `${i ? "L" : "M"}${x(ages[i]).toFixed(1)},${y(v).toFixed(1)}`).join("");
+        el("path", { d, class: "line", stroke: sr.color, "stroke-dasharray": sr.dash || "none" }, svg);
+      }
 
       // Hover layer
       const cross = el("line", { y1: m.top, y2: m.top + ih, class: "crosshair", visibility: "hidden" }, svg);
-      const dotW = el("circle", { r: 4, class: "dot", fill: "var(--withdrawal)", visibility: "hidden" }, svg);
-      const dotG = el("circle", { r: 4, class: "dot", fill: "var(--growth)", visibility: "hidden" }, svg);
-      const dotN = el("circle", { r: 4, class: "dot", fill: "var(--networth)", visibility: "hidden" }, svg);
+      const dots = series.map(sr => el("circle", { r: 4, class: "dot", fill: sr.color, visibility: "hidden" }, svg));
       const hit = el("rect", { x: m.left, y: 0, width: iw, height: H, fill: "transparent" }, svg);
 
       function show(clientX) {
         const box = svg.getBoundingClientRect();
         const px = (clientX - box.left) * (W / box.width);
-        const age = Math.round(minAge + (px - m.left) / iw * (maxAge - minAge));
-        const r = rows[Math.min(rows.length - 1, Math.max(0, age - minAge))];
-        const cx = x(r.age);
+        const i = Math.min(ages.length - 1, Math.max(0, Math.round((px - m.left) / iw * (maxAge - minAge))));
+        const cx = x(ages[i]);
         cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
-        dotN.setAttribute("cx", cx); dotN.setAttribute("cy", y(r.netWorth));
-        dotW.setAttribute("cx", cx); dotW.setAttribute("cy", y(r.withdrawal));
-        dotG.setAttribute("cx", cx); dotG.setAttribute("cy", y(r.growth));
-        [cross, dotN, dotW, dotG].forEach(n => n.setAttribute("visibility", "visible"));
-        tooltip.innerHTML = `<strong>Age ${r.age}</strong><br>` +
-          `<span class="sw" style="background:var(--networth)"></span>Net worth ${money.format(r.netWorth)}<br>` +
-          `<span class="sw" style="background:var(--withdrawal)"></span>Withdrawal ${money.format(r.withdrawal)}<br>` +
-          `<span class="sw" style="background:var(--growth)"></span>Growth ${money.format(r.growth)}`;
+        series.forEach((sr, k) => { dots[k].setAttribute("cx", cx); dots[k].setAttribute("cy", y(sr.values[i])); });
+        [cross, ...dots].forEach(n => n.setAttribute("visibility", "visible"));
+        tooltip.innerHTML = `<strong>Age ${ages[i]}</strong>` + tipOrder.map(sr =>
+          `<br><span class="sw" style="background:${sr.color}"></span>${sr.label} ${money.format(sr.values[i])}`).join("");
         tooltip.style.display = "block";
         const scale = box.width / W;
         const tx = cx * scale, tw = tooltip.offsetWidth;
@@ -310,7 +329,7 @@
         tooltip.style.top = (m.top * scale) + "px";
       }
       function hide() {
-        [cross, dotN, dotW, dotG].forEach(n => n.setAttribute("visibility", "hidden"));
+        [cross, ...dots].forEach(n => n.setAttribute("visibility", "hidden"));
         tooltip.style.display = "none";
       }
       hit.addEventListener("pointermove", e => show(e.clientX));
@@ -318,12 +337,39 @@
       hit.addEventListener("pointerleave", hide);
     }
 
-    window.addEventListener("resize", () => { if (lastRows && !chartArea.hidden) drawChart(lastRows, lastRetireAge); });
+    // Growth-rate offsets (percentage points) for the scenario chart.
+    const SCENARIOS = [
+      { delta: 2, label: "+2%", color: "var(--sc-up2)" },
+      { delta: 1, label: "+1%", color: "var(--sc-up1)" },
+      { delta: -1, label: "-1%", color: "var(--sc-dn1)" },
+      { delta: -2, label: "-2%", color: "var(--sc-dn2)" },
+    ];
+
+    function drawAll() {
+      if (!lastInputs || chartArea.hidden) return;
+      const { v, rows } = lastInputs;
+      const ages = rows.map(r => r.age);
+      const netWorth = { label: "Net worth", color: "var(--networth)", values: rows.map(r => r.netWorth) };
+      const withdrawal = { label: "Withdrawal", color: "var(--withdrawal)", dash: "6 4", values: rows.map(r => r.withdrawal) };
+      const growth = { label: "Growth", color: "var(--growth)", values: rows.map(r => r.growth) };
+      drawChart(svg, tooltip, ages, [withdrawal, growth, netWorth], v.retireAge, [netWorth, withdrawal, growth]);
+
+      const scen = SCENARIOS.map(sc => ({
+        label: `${sc.label} (${+(v.growth + sc.delta).toFixed(2)}%)`, color: sc.color,
+        values: project({ ...v, growth: v.growth + sc.delta }).map(r => r.netWorth),
+      }));
+      const base = { ...netWorth, label: `Net Worth (${v.growth}%)` };
+      drawChart(scenSvg, scenTooltip, ages, [...scen, base], v.retireAge, [scen[0], scen[1], base, scen[2], scen[3]]);
+    }
+
+    window.addEventListener("resize", drawAll);
 
     function render() {
       rowsEl.innerHTML = "";
       errorEl.textContent = "";
       chartArea.hidden = true;
+      scenCard.hidden = true;
+      lastInputs = null;
       const v = readInputs();
       if (!v) {
         summaryEl.textContent = "Fill in all fields to see your projection.";
@@ -351,7 +397,9 @@
       }
       rowsEl.appendChild(frag);
       chartArea.hidden = false;
-      drawChart(rows, v.retireAge);
+      scenCard.hidden = false;
+      lastInputs = { v, rows };
+      drawAll();
 
       const broke = rows.find(r => r.shortfall);
       const lines = [broke
