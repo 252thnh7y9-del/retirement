@@ -20,9 +20,11 @@
       --grid: #e6e9ee;
       --page-good: #dcefe1;
       --page-bad: #f6dada;
-      --band-light: rgba(220, 70, 70, 0.16);
+      --band-faint: rgba(220, 70, 70, 0.09);
+      --band-light: rgba(220, 70, 70, 0.22);
       --band-dark: rgba(150, 20, 20, 0.38);
-      --band-good-light: rgba(40, 160, 80, 0.18);
+      --band-good-faint: rgba(40, 160, 80, 0.10);
+      --band-good-light: rgba(40, 160, 80, 0.24);
       --band-good-dark: rgba(20, 110, 50, 0.40);
     }
     @media (prefers-color-scheme: dark) {
@@ -41,9 +43,11 @@
         --grid: #2a2f38;
         --page-good: #13281b;
         --page-bad: #2e1616;
-        --band-light: rgba(255, 110, 110, 0.16);
+        --band-faint: rgba(255, 110, 110, 0.08);
+        --band-light: rgba(255, 110, 110, 0.20);
         --band-dark: rgba(200, 40, 40, 0.42);
-        --band-good-light: rgba(70, 200, 110, 0.16);
+        --band-good-faint: rgba(70, 200, 110, 0.08);
+        --band-good-light: rgba(70, 200, 110, 0.20);
         --band-good-dark: rgba(40, 170, 80, 0.42);
       }
     }
@@ -417,6 +421,8 @@
     const SCENARIOS = [
       { growth: 2, inflation: -2, color: "var(--band-good-dark)" },
       { growth: 1, inflation: -1, color: "var(--band-good-light)" },
+      { growth: 1, inflation: 0, color: "var(--band-good-faint)" },
+      { growth: -1, inflation: 0, color: "var(--band-faint)" },
       { growth: -1, inflation: 1, color: "var(--band-light)" },
       { growth: -2, inflation: 2, color: "var(--band-dark)" },
     ];
@@ -442,15 +448,19 @@
       const base = { ...netWorth, label: `Net Worth (${pts(v.growth)}% growth, ${pts(v.inflation)}% infl.)` };
       // Only the net worth line is drawn; the scenarios appear as shaded bands (and in the
       // tooltip): green above it for better growth/inflation, red below it for worse.
-      const [best, good, bad, worst] = scen;
+      // Bands step outward from the net worth line: growth ±1 only (faintest), then
+      // growth ±1 with inflation ∓1, then growth ±2 with inflation ∓2 (darkest).
+      const [best, good, up, down, bad, worst] = scen;
       const bands = [
         { upper: best.values, lower: good.values, color: best.color },
-        { upper: good.values, lower: base.values, color: good.color },
-        { upper: base.values, lower: bad.values, color: bad.color },
+        { upper: good.values, lower: up.values, color: good.color },
+        { upper: up.values, lower: base.values, color: up.color },
+        { upper: base.values, lower: down.values, color: down.color },
+        { upper: down.values, lower: bad.values, color: bad.color },
         { upper: bad.values, lower: worst.values, color: worst.color },
       ];
       // Scale to the net worth line (+50% headroom) so the upside bands don't flatten the rest.
-      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [best, good, base, bad, worst], bands, 1.5);
+      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [best, good, up, base, down, bad, worst], bands, 1.5);
     }
 
     window.addEventListener("resize", drawAll);
