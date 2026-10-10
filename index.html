@@ -146,7 +146,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Age</th><th>Withdrawal</th><th>Net Worth</th></tr>
+            <tr><th>Age</th><th>Withdrawal</th><th>Growth</th><th>Net Worth</th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>
@@ -178,7 +178,8 @@
 
     // Each row is one year. Before retirement there is no withdrawal.
     // From retirement on, withdrawal = desired income inflated from today to that age.
-    // Net worth = previous year's net worth grown by the growth rate, minus that year's withdrawal.
+    // Growth = previous year's net worth × growth rate.
+    // Net worth = previous year's net worth + growth − withdrawal.
     // Net worth never goes below zero: the withdrawal is capped at whatever is left,
     // so the year the money runs out takes the remainder and later years withdraw nothing.
     function project({ age, retireAge, income, inflation, netWorth, growth }) {
@@ -187,11 +188,12 @@
       const g = growth / 100;
       let nw = Math.max(0, netWorth);
       for (let a = age, i = 0; a <= END_AGE; a++, i++) {
-        const available = i === 0 ? nw : nw * (1 + g);
+        const growthAmt = i === 0 ? 0 : nw * g;
+        const available = nw + growthAmt;
         const desired = a >= retireAge ? income * Math.pow(1 + inf, i) : 0;
         const withdrawal = Math.min(desired, available);
         nw = available - withdrawal;
-        rows.push({ age: a, withdrawal, netWorth: nw, retired: a >= retireAge, shortfall: withdrawal < desired });
+        rows.push({ age: a, withdrawal, growth: growthAmt, netWorth: nw, retired: a >= retireAge, shortfall: withdrawal < desired });
       }
       return rows;
     }
@@ -314,7 +316,7 @@
       for (const r of rows) {
         const tr = document.createElement("tr");
         if (r.retired) tr.className = "retired";
-        const cells = [String(r.age), money.format(r.withdrawal), money.format(r.netWorth)];
+        const cells = [String(r.age), money.format(r.withdrawal), money.format(r.growth), money.format(r.netWorth)];
         cells.forEach((text, idx) => {
           const td = document.createElement("td");
           td.textContent = text;
