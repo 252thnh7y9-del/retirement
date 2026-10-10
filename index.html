@@ -329,7 +329,9 @@
     // Draws a line chart into `svg`. `series` is a list of { label, color, dash, values },
     // one value per age; later series are drawn on top. Tooltip lists them in `tipOrder`.
     // `bands` optionally shades between two value lists: { upper, lower, color }.
-    function drawChart(svg, tooltip, ages, series, retireAge, tipOrder = series, bands = []) {
+    // `headroom`, if set, scales the Y axis to the drawn lines' peak × headroom instead of
+    // fitting the bands; anything taller is clipped at the top of the plot.
+    function drawChart(svg, tooltip, ages, series, retireAge, tipOrder = series, bands = [], headroom = 0) {
       svg.replaceChildren();
       tooltip.style.display = "none";
       const W = Math.max(300, svg.parentElement.clientWidth);
@@ -339,7 +341,8 @@
       const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
 
       const minAge = ages[0], maxAge = ages[ages.length - 1];
-      const peak = Math.max(1, ...series.flatMap(sr => sr.values), ...bands.flatMap(b => b.upper));
+      const linePeak = Math.max(1, ...series.flatMap(sr => sr.values));
+      const peak = headroom ? linePeak * headroom : Math.max(linePeak, ...bands.flatMap(b => b.upper));
       const yStep = niceStep(peak, 5);
       const yMax = Math.ceil(peak / yStep) * yStep;
       const x = a => m.left + (maxAge === minAge ? iw / 2 : (a - minAge) / (maxAge - minAge) * iw);
@@ -365,10 +368,13 @@
         t.textContent = "Retire";
       }
 
+      const clipId = `${svg.id}-plot`;
+      const clip = el("clipPath", { id: clipId }, el("defs", {}, svg));
+      el("rect", { x: m.left, y: m.top, width: iw, height: ih }, clip);
       for (const b of bands) {
         const top = b.upper.map((v, i) => `${i ? "L" : "M"}${x(ages[i]).toFixed(1)},${y(v).toFixed(1)}`).join("");
         const bottom = b.lower.map((v, i) => `L${x(ages[i]).toFixed(1)},${y(v).toFixed(1)}`).reverse().join("");
-        el("path", { d: top + bottom + "Z", fill: b.color, stroke: "none" }, svg);
+        el("path", { d: top + bottom + "Z", fill: b.color, stroke: "none", "clip-path": `url(#${clipId})` }, svg);
       }
       for (const sr of series) {
         const d = sr.values.map((v, i) => `${i ? "L" : "M"}${x(ages[i]).toFixed(1)},${y(v).toFixed(1)}`).join("");
@@ -442,7 +448,8 @@
         { upper: base.values, lower: bad.values, color: bad.color },
         { upper: bad.values, lower: worst.values, color: worst.color },
       ];
-      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [best, good, base, bad, worst], bands);
+      // Scale to the net worth line (+50% headroom) so the upside bands don't flatten the rest.
+      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [best, good, base, bad, worst], bands, 1.5);
     }
 
     window.addEventListener("resize", drawAll);
