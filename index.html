@@ -421,8 +421,8 @@
     const SCENARIOS = [
       { growth: 2, inflation: -2, color: "var(--band-good-dark)" },
       { growth: 1, inflation: -1, color: "var(--band-good-light)" },
-      { growth: 1, inflation: 0, color: "var(--band-good-faint)" },
-      { growth: -1, inflation: 0, color: "var(--band-faint)" },
+      { growth: 0.5, inflation: -0.5, color: "var(--band-good-faint)" },
+      { growth: -0.5, inflation: 0.5, color: "var(--band-faint)" },
       { growth: -1, inflation: 1, color: "var(--band-light)" },
       { growth: -2, inflation: 2, color: "var(--band-dark)" },
     ];
@@ -448,8 +448,8 @@
       const base = { ...netWorth, label: `Net Worth (${pts(v.growth)}% growth, ${pts(v.inflation)}% infl.)` };
       // Only the net worth line is drawn; the scenarios appear as shaded bands (and in the
       // tooltip): green above it for better growth/inflation, red below it for worse.
-      // Bands step outward from the net worth line: growth ±1 only (faintest), then
-      // growth ±1 with inflation ∓1, then growth ±2 with inflation ∓2 (darkest).
+      // Bands step outward from the net worth line: growth ±0.5 with inflation ∓0.5 (faintest),
+      // then ±1/∓1, then ±2/∓2 (darkest).
       const [best, good, up, down, bad, worst] = scen;
       const bands = [
         { upper: best.values, lower: good.values, color: best.color },
