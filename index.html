@@ -22,6 +22,8 @@
       --page-bad: #f6dada;
       --band-light: rgba(220, 70, 70, 0.16);
       --band-dark: rgba(150, 20, 20, 0.38);
+      --band-good-light: rgba(40, 160, 80, 0.18);
+      --band-good-dark: rgba(20, 110, 50, 0.40);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -41,6 +43,8 @@
         --page-bad: #2e1616;
         --band-light: rgba(255, 110, 110, 0.16);
         --band-dark: rgba(200, 40, 40, 0.42);
+        --band-good-light: rgba(70, 200, 110, 0.16);
+        --band-good-dark: rgba(40, 170, 80, 0.42);
       }
     }
     * { box-sizing: border-box; }
@@ -206,7 +210,7 @@
 
     <section class="card" id="scenarioCard" hidden>
       <h2 class="chart-title">Net Worth Worst-case Scenarios</h2>
-      <p class="chart-note">Light red: growth 1 point lower and inflation 1 point higher. Dark red: down to growth 2 points lower and inflation 2 points higher.</p>
+      <p class="chart-note">Varying inflation and growth by 1-2%</p>
       <div class="chart-wrap">
         <svg class="chart" id="scenarioChart" role="img" aria-label="Net worth by age with growth 1 to 2 points lower and inflation 1 to 2 points higher"></svg>
         <div class="tooltip" id="scenarioTooltip"></div>
@@ -335,7 +339,7 @@
       const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
 
       const minAge = ages[0], maxAge = ages[ages.length - 1];
-      const peak = Math.max(1, ...series.flatMap(sr => sr.values));
+      const peak = Math.max(1, ...series.flatMap(sr => sr.values), ...bands.flatMap(b => b.upper));
       const yStep = niceStep(peak, 5);
       const yMax = Math.ceil(peak / yStep) * yStep;
       const x = a => m.left + (maxAge === minAge ? iw / 2 : (a - minAge) / (maxAge - minAge) * iw);
@@ -404,9 +408,12 @@
     // Worst-case scenarios: growth lowered and inflation raised by these percentage points.
     // Shade tracks the growth cut (light = -1, dark = -2); dashes mark the bigger inflation bump.
     const SCENARIOS = [
+      { growth: 2, inflation: -2, color: "var(--band-good-dark)" },
+      { growth: 1, inflation: -1, color: "var(--band-good-light)" },
       { growth: -1, inflation: 1, color: "var(--band-light)" },
       { growth: -2, inflation: 2, color: "var(--band-dark)" },
     ];
+    const signed = n => (n > 0 ? "+" : "") + n;
     const pts = n => +n.toFixed(2);
 
     function drawAll() {
@@ -421,19 +428,21 @@
       const scen = SCENARIOS.map(sc => {
         const g = v.growth + sc.growth, inf = v.inflation + sc.inflation;
         return {
-          label: `${sc.growth}/+${sc.inflation} (${pts(g)}% growth, ${pts(inf)}% infl.)`, color: sc.color, box: true,
+          label: `${signed(sc.growth)}/${signed(sc.inflation)} (${pts(g)}% growth, ${pts(inf)}% infl.)`, color: sc.color, box: true,
           values: project({ ...v, growth: g, inflation: inf }).map(r => r.netWorth),
         };
       });
       const base = { ...netWorth, label: `Net Worth (${pts(v.growth)}% growth, ${pts(v.inflation)}% infl.)` };
-      // Only the net worth line is drawn; the scenarios appear as shaded bands below it
-      // (and in the tooltip): Net Worth to -1/+1, then -1/+1 to -2/+2.
-      const [mild, worst] = scen;
+      // Only the net worth line is drawn; the scenarios appear as shaded bands (and in the
+      // tooltip): green above it for better growth/inflation, red below it for worse.
+      const [best, good, bad, worst] = scen;
       const bands = [
-        { upper: base.values, lower: mild.values, color: mild.color },
-        { upper: mild.values, lower: worst.values, color: worst.color },
+        { upper: best.values, lower: good.values, color: best.color },
+        { upper: good.values, lower: base.values, color: good.color },
+        { upper: base.values, lower: bad.values, color: bad.color },
+        { upper: bad.values, lower: worst.values, color: worst.color },
       ];
-      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [base, mild, worst], bands);
+      drawChart(scenSvg, scenTooltip, ages, [base], v.retireAge, [best, good, base, bad, worst], bands);
     }
 
     window.addEventListener("resize", drawAll);
